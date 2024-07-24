@@ -194,7 +194,7 @@ class ReplicaDataset(BaseDataset):
         self.translation = translation
         self.sc_factor = sc_factor
         self.crop = crop
-        self.img_files = sorted(glob.glob(f'{self.basedir}/results/frame*.png'))
+        self.img_files = sorted(glob.glob(f'{self.basedir}/results/frame*.jpg'))
         self.depth_paths = sorted(
             glob.glob(f'{self.basedir}/results/depth*.png'))
         self.load_poses(os.path.join(self.basedir, 'traj.txt'))
