@@ -323,11 +323,8 @@ class CoSLAM():
 
 
 if __name__ == '__main__':
-    import cProfile
-    import pstats
-    import io
-    from pstats import SortKey
-    
+    start_time = time.time()  # Record the start time
+            
     print('Start running...')
     parser = argparse.ArgumentParser(
         description='Arguments for running the NICE-SLAM/iMAP*.'
@@ -355,18 +352,9 @@ if __name__ == '__main__':
 
     slam = CoSLAM(cfg)
 
-    # Profile the run method
-    cProfile.runctx('slam.run()', globals(), locals(), 'profiling_results.prof')
+    slam.run()
 
-    # Read the profiling results
-    s = io.StringIO()
-    sortby = SortKey.CUMULATIVE
-    ps = pstats.Stats('profiling_results.prof', stream=s).sort_stats(sortby)
-    ps.print_stats()
+    end_time = time.time()  # Record the end time
+    execution_time = end_time - start_time  # Calculate the execution time
 
-    # Save the readable profiling results
-    with open(os.path.join(save_path, 'profiling_results.txt'), 'w') as f:
-        f.write(s.getvalue())
-
-    print(f"Profiling results saved to {os.path.join(save_path, 'profiling_results.prof')}")
-    print(f"Readable profiling results saved to {os.path.join(save_path, 'profiling_results.txt')}")
+    print(f"Total execution time: {execution_time:.2f} seconds")
