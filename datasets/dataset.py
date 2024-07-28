@@ -261,6 +261,7 @@ class ReplicaDataset(BaseDataset):
             c2w[:3, 1] *= -1
             c2w[:3, 2] *= -1
             c2w[:3, 3] *= self.sc_factor
+            #w2c = np.linalg.inv(c2w)
             c2w = torch.from_numpy(c2w).float()
             self.poses.append(c2w)
 
