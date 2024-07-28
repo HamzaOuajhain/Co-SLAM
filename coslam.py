@@ -273,8 +273,10 @@ class CoSLAM():
         task = 'mapping' if mapping else 'tracking'
         cur_trans = torch.nn.parameter.Parameter(poses[:, :3, 3])
         cur_rot = torch.nn.parameter.Parameter(self.matrix_to_tensor(poses[:, :3, :3]))
-        pose_optimizer = torch.optim.Adam([{"params": cur_rot, "lr": self.config[task]['lr_rot']},
-                                               {"params": cur_trans, "lr": self.config[task]['lr_trans']}])
+        pose_optimizer = torch.optim.Adam([
+            {"params": cur_rot, "lr": self.config[task]['initial_lr_rot'] if 'initial_lr_rot' in self.config[task] else self.config[task]['lr_rot']},
+            {"params": cur_trans, "lr": self.config[task]['initial_lr_trans'] if 'initial_lr_trans' in self.config[task] else self.config[task]['lr_trans']}
+        ])
         
         return cur_rot, cur_trans, pose_optimizer
     
@@ -360,6 +362,8 @@ class CoSLAM():
                
                 if (i + 1) > cfg["mapping"]["map_wait_step"]:
                     self.map_optimizer.step()
+                    if self.config['mapping']['use_adaptive_lr']:
+                        self.map_scheduler.step()
                 else:
                     print('Wait update')
                 self.map_optimizer.zero_grad()
@@ -522,6 +526,14 @@ class CoSLAM():
 
         cur_rot, cur_trans, pose_optimizer = self.get_pose_param_optim(cur_c2w[None,...], mapping=False)
 
+        # Create a learning rate scheduler that will decrease the learning rate over time
+        # This can help optimization by allowing larger initial steps and then fine-tuning
+        if self.config['mapping']['use_adaptive_lr']:
+            pose_scheduler = optim.lr_scheduler.StepLR(pose_optimizer, 
+                                                   step_size=self.config['mapping']['lr_decay_steps'], 
+                                                   gamma=self.config['mapping']['lr_decay_factor'])
+
+
         # Start tracking
         for i in range(self.config['tracking']['iter']):
             pose_optimizer.zero_grad()
@@ -562,6 +574,8 @@ class CoSLAM():
 
             loss.backward()
             pose_optimizer.step()
+            if self.config['mapping']['use_adaptive_lr']:
+                pose_scheduler.step()
         
         if self.config['tracking']['best']:
             # Use the pose with smallest loss
@@ -598,22 +612,18 @@ class CoSLAM():
         '''
         Create optimizer for mapping
         '''
-        # Optimizer for BA
-        trainable_parameters = [{'params': self.model.decoder.parameters(), 'weight_decay': 1e-6, 'lr': self.config['mapping']['lr_decoder']},
-                                {'params': self.model.embed_fn.parameters(), 'eps': 1e-15, 'lr': self.config['mapping']['lr_embed']}]
-    
+        trainable_parameters = [{'params': self.model.decoder.parameters(), 'weight_decay': 1e-6, 'lr': self.config['mapping']['initial_lr_decoder']},
+                                {'params': self.model.embed_fn.parameters(), 'eps': 1e-15, 'lr': self.config['mapping']['initial_lr_embed']}]
+
         if not self.config['grid']['oneGrid']:
-            trainable_parameters.append({'params': self.model.embed_fn_color.parameters(), 'eps': 1e-15, 'lr': self.config['mapping']['lr_embed_color']})
+            trainable_parameters.append({'params': self.model.embed_fn_color.parameters(), 'eps': 1e-15, 'lr': self.config['mapping']['initial_lr_embed']})
         
         self.map_optimizer = optim.Adam(trainable_parameters, betas=(0.9, 0.99))
         
-        # Optimizer for current frame mapping
-        if self.config['mapping']['cur_frame_iters'] > 0:
-            params_cur_mapping = [{'params': self.model.embed_fn.parameters(), 'eps': 1e-15, 'lr': self.config['mapping']['lr_embed']}]
-            if not self.config['grid']['oneGrid']:
-                params_cur_mapping.append({'params': self.model.embed_fn_color.parameters(), 'eps': 1e-15, 'lr': self.config['mapping']['lr_embed_color']})
-                 
-            self.cur_map_optimizer = optim.Adam(params_cur_mapping, betas=(0.9, 0.99))
+        if self.config['mapping']['use_adaptive_lr']:
+            self.map_scheduler = optim.lr_scheduler.StepLR(self.map_optimizer, 
+                                                        step_size=self.config['mapping']['lr_decay_steps'], 
+                                                        gamma=self.config['mapping']['lr_decay_factor'])
         
     
     def save_mesh(self, i, voxel_size=0.05):
