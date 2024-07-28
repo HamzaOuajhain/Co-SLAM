@@ -37,6 +37,7 @@ class CoSLAM():
         self.get_pose_representation()
         self.keyframeDatabase = self.create_kf_database(config)
         self.model = JointEncoding(config, self.bounding_box).to(self.device)
+        self.tracking_scheduler = None
     
     def seed_everything(self, seed):
         random.seed(seed)
@@ -274,8 +275,8 @@ class CoSLAM():
         cur_trans = torch.nn.parameter.Parameter(poses[:, :3, 3])
         cur_rot = torch.nn.parameter.Parameter(self.matrix_to_tensor(poses[:, :3, :3]))
         pose_optimizer = torch.optim.Adam([
-            {"params": cur_rot, "lr": self.config[task]['initial_lr_rot'] if 'initial_lr_rot' in self.config[task] else self.config[task]['lr_rot']},
-            {"params": cur_trans, "lr": self.config[task]['initial_lr_trans'] if 'initial_lr_trans' in self.config[task] else self.config[task]['lr_trans']}
+            {"params": cur_rot, "lr": self.config[task]['initial_lr_rot']},
+            {"params": cur_trans, "lr": self.config[task]['initial_lr_trans']}
         ])
         
         return cur_rot, cur_trans, pose_optimizer
@@ -423,7 +424,7 @@ class CoSLAM():
 
         cur_trans = torch.nn.parameter.Parameter(cur_c2w[..., :3, 3].unsqueeze(0))
         cur_rot = torch.nn.parameter.Parameter(self.matrix_to_tensor(cur_c2w[..., :3, :3]).unsqueeze(0))
-        pose_optimizer = torch.optim.Adam([{"params": cur_rot, "lr": self.config['tracking']['lr_rot']},
+        pose_optimizer = torch.optim.Adam([{"params": cur_rot, "lr": self.config['tracking']['initial_lr_rot']},
                                                {"params": cur_trans, "lr": self.config['tracking']['lr_trans']}])
         best_sdf_loss = None
 
@@ -529,9 +530,10 @@ class CoSLAM():
         # Create a learning rate scheduler that will decrease the learning rate over time
         # This can help optimization by allowing larger initial steps and then fine-tuning
         if self.config['mapping']['use_adaptive_lr']:
-            pose_scheduler = optim.lr_scheduler.StepLR(pose_optimizer, 
-                                                   step_size=self.config['mapping']['lr_decay_steps'], 
-                                                   gamma=self.config['mapping']['lr_decay_factor'])
+            if self.tracking_scheduler is None :
+                self.tracking_scheduler = optim.lr_scheduler.StepLR(pose_optimizer, 
+                                                                    step_size=self.config['mapping']['lr_decay_steps'], 
+                                                                    gamma=self.config['mapping']['lr_decay_factor'])
 
 
         # Start tracking
@@ -575,7 +577,9 @@ class CoSLAM():
             loss.backward()
             pose_optimizer.step()
             if self.config['mapping']['use_adaptive_lr']:
-                pose_scheduler.step()
+                self.tracking_scheduler.step()
+                current_lr = self.tracking_scheduler.get_last_lr()[0]
+                print(f"Frame {frame_id}, Tracking Iteration {i}: Current LR = {current_lr:.6f}")
         
         if self.config['tracking']['best']:
             # Use the pose with smallest loss
