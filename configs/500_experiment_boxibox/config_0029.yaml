@@ -1,0 +1,24 @@
+inherit_from: configs/500_experiment_boxibox/base_config.yaml
+mapping:
+  hash_size: 12
+  keyframe_every: 5
+  map_every: 5
+  first_iters: 500
+tracking:
+  iter: 10
+  best: true
+grid:
+  voxel_color: 0.08
+  voxel_sdf: 0.01
+training:
+  smooth_weight: 0.001
+  smooth_pts: 32
+  n_samples_d: 64
+mesh:
+  voxel_eval: 0.02
+  voxel_final: 0.015
+data:
+  datadir: data/box_model
+  trainskip: 1
+  output: output/box_experiments
+  exp_name: boxibox_experiment_0029

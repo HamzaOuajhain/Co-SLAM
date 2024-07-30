@@ -1,8 +1,8 @@
 inherit_from: configs/nerf/iphone_version.yaml
 
 mapping:
-  bound: [[-10.0, 10.0],[-10.0, 10.0],[-10.0, 10.0]]
-  marching_cubes_bound: [[-10.0, 10.0],[-10.0, 10.0],[-10.0, 10.0]]
+  bound: [[-5.0, 5.0],[-5.0, 5.0],[-5.0, 5.0]]
+  marching_cubes_bound: [[-5.0, 5.0],[-5.0, 5.0],[-5.0, 5.0]]
 
 data:
   datadir: data/lego

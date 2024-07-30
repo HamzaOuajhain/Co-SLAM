@@ -1,22 +1,31 @@
 #!/bin/bash
 
 # Path to the directory containing the configuration files
-config_dir="$HOME/Desktop/Thesis/Codes/Thesis/Co-SLAM/configs/Replica/My_experiment"
+config_dir="$HOME/Desktop/Thesis/Codes/Thesis/Co-SLAM/configs/500_experiment_boxibox"
+
+# Path to the Co-SLAM script
+coslam_script="$HOME/Desktop/Thesis/Codes/Thesis/Co-SLAM/coslam.py"
+
+# Ensure the base_config.yaml is in the correct location
+if [ ! -f "${config_dir}/base_config.yaml" ]; then
+    echo "Error: base_config.yaml not found in ${config_dir}"
+    exit 1
+fi
 
 # Loop through each experiment configuration file
-for i in {1..6}
+for config_file in ${config_dir}/config_*.yaml
 do
-    config_file="${config_dir}/replica_room1_exp${i}.yaml"
-    echo "Running experiment ${i} with configuration ${config_file}"
+    experiment_number=$(basename ${config_file} .yaml | sed 's/config_//')
+    echo "Running experiment ${experiment_number} with configuration ${config_file}"
 
     # Run the Co-SLAM script with the current configuration file
-    python ~/Desktop/Thesis/Codes/Thesis/Co-SLAM/coslam.py --config ${config_file}
+    python ${coslam_script} --config ${config_file}
 
     # Check if the previous command was successful
     if [ $? -eq 0 ]; then
-        echo "Experiment ${i} completed successfully."
+        echo "Experiment ${experiment_number} completed successfully."
     else
-        echo "Experiment ${i} failed."
+        echo "Experiment ${experiment_number} failed."
     fi
 
     echo "-----------------------------------"

@@ -581,7 +581,7 @@ class CoSLAM():
             if self.config['tracking']['use_adaptive_lr']:
                 self.tracking_scheduler.step()
                 current_lr = self.tracking_scheduler.get_last_lr()[0]
-                print(f"Frame {frame_id}, Tracking Iteration {i}: Current LR = {current_lr:.6f}")
+                #print(f"Frame {frame_id}, Tracking Iteration {i}: Current LR = {current_lr:.6f}")
         
         if self.config['tracking']['best']:
             # Use the pose with smallest loss
@@ -630,7 +630,7 @@ class CoSLAM():
             self.map_scheduler = optim.lr_scheduler.StepLR(self.map_optimizer, 
                                                         step_size=self.config['mapping']['lr_decay_steps'], 
                                                         gamma=self.config['mapping']['lr_decay_factor'])
-            print(f"Initial mapping LR: {self.map_scheduler.get_last_lr()[0]:.6f}")
+            #print(f"Initial mapping LR: {self.map_scheduler.get_last_lr()[0]:.6f}")
         
     
     def save_mesh(self, i, voxel_size=0.05):
