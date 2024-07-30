@@ -359,17 +359,19 @@ class CoSLAM():
             
             loss.backward(retain_graph=True)
             
-            if (i + 1) % cfg["mapping"]["map_accum_step"] == 0:
+            if (i + 1) % self.config["mapping"]["map_accum_step"] == 0:
                
-                if (i + 1) > cfg["mapping"]["map_wait_step"]:
+                if (i + 1) > self.config["mapping"]["map_wait_step"]:
                     self.map_optimizer.step()
                     if self.config['mapping']['use_adaptive_lr']:
                         self.map_scheduler.step()
+                        current_lr = self.map_scheduler.get_last_lr()[0]
+                        print(f"Frame {cur_frame_id}, Mapping Iteration {i}: Current LR = {current_lr:.6f}")
                 else:
                     print('Wait update')
                 self.map_optimizer.zero_grad()
 
-            if pose_optimizer is not None and (i + 1) % cfg["mapping"]["pose_accum_step"] == 0:
+            if pose_optimizer is not None and (i + 1) % self.config["mapping"]["pose_accum_step"] == 0:
                 pose_optimizer.step()
                 # get SE3 poses to do forward pass
                 pose_optim = self.matrix_from_tensor(cur_rot, cur_trans)
@@ -529,11 +531,11 @@ class CoSLAM():
 
         # Create a learning rate scheduler that will decrease the learning rate over time
         # This can help optimization by allowing larger initial steps and then fine-tuning
-        if self.config['mapping']['use_adaptive_lr']:
+        if self.config['tracking']['use_adaptive_lr']:
             if self.tracking_scheduler is None :
                 self.tracking_scheduler = optim.lr_scheduler.StepLR(pose_optimizer, 
-                                                                    step_size=self.config['mapping']['lr_decay_steps'], 
-                                                                    gamma=self.config['mapping']['lr_decay_factor'])
+                                                                    step_size=self.config['tracking']['lr_decay_steps'], 
+                                                                    gamma=self.config['tracking']['lr_decay_factor'])
 
 
         # Start tracking
@@ -576,7 +578,7 @@ class CoSLAM():
 
             loss.backward()
             pose_optimizer.step()
-            if self.config['mapping']['use_adaptive_lr']:
+            if self.config['tracking']['use_adaptive_lr']:
                 self.tracking_scheduler.step()
                 current_lr = self.tracking_scheduler.get_last_lr()[0]
                 print(f"Frame {frame_id}, Tracking Iteration {i}: Current LR = {current_lr:.6f}")
@@ -628,6 +630,7 @@ class CoSLAM():
             self.map_scheduler = optim.lr_scheduler.StepLR(self.map_optimizer, 
                                                         step_size=self.config['mapping']['lr_decay_steps'], 
                                                         gamma=self.config['mapping']['lr_decay_factor'])
+            print(f"Initial mapping LR: {self.map_scheduler.get_last_lr()[0]:.6f}")
         
     
     def save_mesh(self, i, voxel_size=0.05):
@@ -690,7 +693,7 @@ class CoSLAM():
                     pose_evaluation(self.pose_gt, self.est_c2w_data, 1, os.path.join(self.config['data']['output'], self.config['data']['exp_name']), i)
                     pose_evaluation(self.pose_gt, pose_relative, 1, os.path.join(self.config['data']['output'], self.config['data']['exp_name']), i, img='pose_r', name='output_relative.txt')
 
-                    if cfg['mesh']['visualisation']:
+                    if self.config['mesh']['visualisation']:
                         cv2.namedWindow('Traj:'.format(i), cv2.WINDOW_AUTOSIZE)
                         traj_image = cv2.imread(os.path.join(self.config['data']['output'], self.config['data']['exp_name'], "pose_r_{}.png".format(i)))
                         # best_traj_image = cv2.imread(os.path.join(best_logdir_scene, "pose_r_{}.png".format(i)))
