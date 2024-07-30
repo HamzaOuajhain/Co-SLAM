@@ -1,4 +1,11 @@
+inherit_from: configs/nerf/iphone_version.yaml
+
 dataset: 'replica'
+  datadir: data/new_chair
+  trainskip: 1
+  output: output/new_chair
+  exp_name: chair_demo
+
 
 data:
   downsample: 1
@@ -28,7 +35,10 @@ mapping:
   use_adaptive_lr: False
   lr_decay_factor: 0.95
   lr_decay_steps: 250
-  
+  bound: [[-4.0, 4.0],[-4.0, 4.0],[-4.0, 4.0]]
+  marching_cubes_bound: [[-4.0, 4.0],[-4.0, 4.0],[-4.0, 4.0]]
+
+
 tracking:
   iter: 10
   sample: 1024
