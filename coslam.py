@@ -366,7 +366,7 @@ class CoSLAM():
                     if self.config['mapping']['use_adaptive_lr']:
                         self.map_scheduler.step()
                         current_lr = self.map_scheduler.get_last_lr()[0]
-                        print(f"Frame {cur_frame_id}, Mapping Iteration {i}: Current LR = {current_lr:.6f}")
+                        #print(f"Frame {cur_frame_id}, Mapping Iteration {i}: Current LR = {current_lr:.6f}")
                 else:
                     print('Wait update')
                 self.map_optimizer.zero_grad()
