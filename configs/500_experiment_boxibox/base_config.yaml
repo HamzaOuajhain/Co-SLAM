@@ -47,7 +47,7 @@ tracking:
   best: True
   # Adaptive learning rate for Tracking
   use_adaptive_lr: True
-  lr_decay_factor: 0.95
+  lr_decay_factor: 0.9
   lr_decay_steps: 1250
 
 grid:

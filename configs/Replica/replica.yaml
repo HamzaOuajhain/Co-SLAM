@@ -27,8 +27,8 @@ mapping:
   filter_depth: False
   # Adaptive learning rate for Mapping
   use_adaptive_lr: True
-  lr_decay_factor: 0.95
-  lr_decay_steps: 250
+  lr_decay_factor: 0.5
+  lr_decay_steps: 50
 
 tracking:
   iter: 10
@@ -44,8 +44,8 @@ tracking:
   best: True
   # Adaptive learning rate for Tracking
   use_adaptive_lr: True
-  lr_decay_factor: 0.95
-  lr_decay_steps: 1250
+  lr_decay_factor: 0.5
+  lr_decay_steps: 200
 
 grid:
   enc: 'HashGrid'
