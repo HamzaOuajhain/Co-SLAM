@@ -26,6 +26,16 @@ from tools.eval_ate import pose_evaluation
 from optimization.utils import at_to_transform_matrix, qt_to_transform_matrix, matrix_to_axis_angle, matrix_to_quaternion
 
 
+class MinLRScheduler(optim.lr_scheduler.StepLR):
+    def __init__(self, optimizer, step_size, gamma, min_lr):
+        self.min_lr = min_lr
+        super(MinLRScheduler, self).__init__(optimizer, step_size, gamma)
+
+    def get_lr(self):
+        return [max(base_lr * self.gamma ** (self.last_epoch // self.step_size), self.min_lr) for base_lr in self.base_lrs]
+
+
+
 class CoSLAM():
     def __init__(self, config):
         self.config = config
@@ -38,15 +48,14 @@ class CoSLAM():
         self.keyframeDatabase = self.create_kf_database(config)
         self.model = JointEncoding(config, self.bounding_box).to(self.device)
 
-        # Scheduler 
+        # Scheduler Initialisation
         self.tracking_scheduler = None
         self.mapping_scheduler = None
 
         # Learning rate Initialisation
         self.tracking_min_lr = config['tracking']['min_lr']
-        self.tracking_max_lr = config['tracking']['max_lr']
         self.mapping_min_lr = config['mapping']['min_lr'] 
-        self.mapping_max_lr = config['mapping']['max_lr']
+
     
     def seed_everything(self, seed):
         random.seed(seed)
@@ -373,6 +382,7 @@ class CoSLAM():
                 if (i + 1) > self.config["mapping"]["map_wait_step"]:
                     self.map_optimizer.step()
                     if self.config['mapping']['use_adaptive_lr']:
+
                         self.mapping_scheduler.step()
                         current_lr = self.mapping_scheduler.get_last_lr()[0]
                         #print(f"Frame {cur_frame_id}, Mapping Iteration {i}: Current LR = {current_lr:.6f}")
@@ -394,7 +404,6 @@ class CoSLAM():
                     # SE3 poses
 
                     poses_all = torch.cat([poses_fixed, pose_optim, current_pose], dim=0)
-
 
                 # zero_grad here
                 pose_optimizer.zero_grad()
@@ -542,9 +551,12 @@ class CoSLAM():
         # This can help optimization by allowing larger initial steps and then fine-tuning
         if self.config['tracking']['use_adaptive_lr']:
             if self.tracking_scheduler is None :
-                self.tracking_scheduler = optim.lr_scheduler.StepLR(pose_optimizer, 
-                                                                    step_size=self.config['tracking']['lr_decay_steps'], 
-                                                                    gamma=self.config['tracking']['lr_decay_factor'])
+                self.tracking_scheduler = MinLRScheduler(pose_optimizer, 
+                                                            step_size=self.config['tracking']['lr_decay_steps'], 
+                                                            gamma=self.config['tracking']['lr_decay_factor'],
+                                                            min_lr= self.tracking_min_lr)
+                
+                
 
 
         # Start tracking
@@ -590,7 +602,7 @@ class CoSLAM():
             if self.config['tracking']['use_adaptive_lr']:
                 self.tracking_scheduler.step()
                 current_lr = self.tracking_scheduler.get_last_lr()[0]
-                #print(f"Frame {frame_id}, Tracking Iteration {i}: Current LR = {current_lr:.6f}")
+                print(f"Frame {frame_id}, Tracking Iteration {i}: Current LR = {current_lr:.6f}")
         
         if self.config['tracking']['best']:
             # Use the pose with smallest loss
@@ -641,10 +653,13 @@ class CoSLAM():
         self.map_optimizer = optim.Adam(trainable_parameters, betas=(0.9, 0.99))
         
         if self.config['mapping']['use_adaptive_lr']:
-            self.mapping_scheduler = optim.lr_scheduler.StepLR(self.map_optimizer, 
-                                                        step_size=self.config['mapping']['lr_decay_steps'], 
-                                                        gamma=self.config['mapping']['lr_decay_factor'])
-            #print(f"Initial mapping LR: {self.mapping_scheduler.get_last_lr()[0]:.6f}")
+            self.mapping_scheduler = MinLRScheduler(
+                self.map_optimizer, 
+                step_size=self.config['mapping']['lr_decay_steps'],
+                gamma=self.config['mapping']['lr_decay_factor'],
+                min_lr=self.mapping_min_lr
+            )
+            print(f"Initial mapping LR: {self.mapping_scheduler.get_last_lr()[0]:.6f}")
         
     
     def save_mesh(self, i, voxel_size=0.05):

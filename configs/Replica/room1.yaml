@@ -12,7 +12,7 @@ data:
 
 tracking:
 # Used as the base of adaptive learning rate in Tracking
-  min_lr: 1e-5 
+  min_lr: 1e-5
 
 mapping:
 # Used as the base of adaptive learning rate in Mapping
