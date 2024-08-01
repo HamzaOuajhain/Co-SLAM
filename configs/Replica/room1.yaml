@@ -9,3 +9,12 @@ data:
   trainskip: 1
   output: output/Replica/room1
   exp_name: demo
+
+tracking:
+# Used as the base of adaptive learning rate in Tracking
+  min_lr: 1e-5 
+
+mapping:
+# Used as the base of adaptive learning rate in Mapping
+  min_lr: 1e-5
+

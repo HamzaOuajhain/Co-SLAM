@@ -37,7 +37,16 @@ class CoSLAM():
         self.get_pose_representation()
         self.keyframeDatabase = self.create_kf_database(config)
         self.model = JointEncoding(config, self.bounding_box).to(self.device)
+
+        # Scheduler 
         self.tracking_scheduler = None
+        self.mapping_scheduler = None
+
+        # Learning rate Initialisation
+        self.tracking_min_lr = config['tracking']['min_lr']
+        self.tracking_max_lr = config['tracking']['max_lr']
+        self.mapping_min_lr = config['mapping']['min_lr'] 
+        self.mapping_max_lr = config['mapping']['max_lr']
     
     def seed_everything(self, seed):
         random.seed(seed)
@@ -364,8 +373,8 @@ class CoSLAM():
                 if (i + 1) > self.config["mapping"]["map_wait_step"]:
                     self.map_optimizer.step()
                     if self.config['mapping']['use_adaptive_lr']:
-                        self.map_scheduler.step()
-                        current_lr = self.map_scheduler.get_last_lr()[0]
+                        self.mapping_scheduler.step()
+                        current_lr = self.mapping_scheduler.get_last_lr()[0]
                         #print(f"Frame {cur_frame_id}, Mapping Iteration {i}: Current LR = {current_lr:.6f}")
                 else:
                     print('Wait update')
@@ -499,7 +508,7 @@ class CoSLAM():
             c2w_key = self.est_c2w_data[kf_frame_id]
             delta = self.est_c2w_data[frame_id] @ c2w_key.float().inverse()
             self.est_c2w_data_rel[frame_id] = delta
-        print('Best loss: {}, Camera loss{}'.format(F.l1_loss(best_c2w_est.to(self.device)[0,:3], c2w_gt[:3]).cpu().item(), F.l1_loss(c2w_est[0,:3], c2w_gt[:3]).cpu().item()))
+        #print('Best loss: {}, Camera loss{}'.format(F.l1_loss(best_c2w_est.to(self.device)[0,:3], c2w_gt[:3]).cpu().item(), F.l1_loss(c2w_est[0,:3], c2w_gt[:3]).cpu().item()))
     
     def tracking_render(self, batch, frame_id):
         '''
@@ -598,8 +607,13 @@ class CoSLAM():
             delta = self.est_c2w_data[frame_id] @ c2w_key.float().inverse()
             self.est_c2w_data_rel[frame_id] = delta
         
-        print('Best loss: {}, Last loss{}'.format(F.l1_loss(best_c2w_est.to(self.device)[0,:3], c2w_gt[:3]).cpu().item(), F.l1_loss(c2w_est[0,:3], c2w_gt[:3]).cpu().item()))
+        #print('Best loss: {}, Last loss{}'.format(F.l1_loss(best_c2w_est.to(self.device)[0,:3], c2w_gt[:3]).cpu().item(), F.l1_loss(c2w_est[0,:3], c2w_gt[:3]).cpu().item()))
     
+
+    def adjust_learning_rate(self, optimizer, new_lr):
+        for param_group in optimizer.param_groups:
+            param_group['lr'] = new_lr
+
     def convert_relative_pose(self):
         poses = {}
         for i in range(len(self.est_c2w_data)):
@@ -627,10 +641,10 @@ class CoSLAM():
         self.map_optimizer = optim.Adam(trainable_parameters, betas=(0.9, 0.99))
         
         if self.config['mapping']['use_adaptive_lr']:
-            self.map_scheduler = optim.lr_scheduler.StepLR(self.map_optimizer, 
+            self.mapping_scheduler = optim.lr_scheduler.StepLR(self.map_optimizer, 
                                                         step_size=self.config['mapping']['lr_decay_steps'], 
                                                         gamma=self.config['mapping']['lr_decay_factor'])
-            #print(f"Initial mapping LR: {self.map_scheduler.get_last_lr()[0]:.6f}")
+            #print(f"Initial mapping LR: {self.mapping_scheduler.get_last_lr()[0]:.6f}")
         
     
     def save_mesh(self, i, voxel_size=0.05):
