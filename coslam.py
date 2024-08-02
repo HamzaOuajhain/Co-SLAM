@@ -81,40 +81,18 @@ class CoSLAM():
         self.config[task]['initial_lr_trans'] = lr_trans
         
         if task == 'mapping':
-            # Update learning rates for mapping optimizer
-            for param_group in self.map_optimizer.param_groups:
-                if param_group['params'] == self.model.decoder.parameters():
-                    param_group['lr'] = self.config['mapping']['initial_lr_decoder']
-                elif param_group['params'] == self.model.embed_fn.parameters():
-                    param_group['lr'] = self.config['mapping']['initial_lr_embed']
-                elif not self.config['grid']['oneGrid'] and param_group['params'] == self.model.embed_fn_color.parameters():
-                    param_group['lr'] = self.config['mapping']['initial_lr_embed']
-            
-            if self.config['mapping']['use_adaptive_lr']:
-                self.mapping_scheduler = MinLRScheduler(
-                    self.map_optimizer, 
-                    step_size=self.config['mapping']['lr_decay_steps'],
-                    gamma=self.config['mapping']['lr_decay_factor'],
-                    min_lr=self.mapping_min_lr
-                )
+            # For mapping, we only need to update the config
+            # The optimizer will use these new rates in the next optimization step
+            pass
         
         elif task == 'tracking':
-            # For tracking, we need to create a new optimizer as it's created for each frame
-            # We'll use the most recent pose estimation
+            # For tracking, we create a new optimizer with the new learning rates
             latest_frame_id = max(self.est_c2w_data.keys())
             latest_pose = self.est_c2w_data[latest_frame_id]
             
-            cur_rot, cur_trans, pose_optimizer = self.get_pose_param_optim(latest_pose[None, ...], mapping=False)
+            cur_rot, cur_trans, self.pose_optimizer = self.get_pose_param_optim(latest_pose[None, ...], mapping=False)
             
-            # Update the learning rates in the newly created optimizer
-            for param_group in pose_optimizer.param_groups:
-                if param_group['params'] == [cur_rot]:
-                    param_group['lr'] = lr_rot
-                elif param_group['params'] == [cur_trans]:
-                    param_group['lr'] = lr_trans
-            
-            # Store the new optimizer
-            self.pose_optimizer = pose_optimizer
+            # The new optimizer is created with the updated learning rates from the config
             
             if self.config['tracking']['use_adaptive_lr']:
                 self.tracking_scheduler = MinLRScheduler(
@@ -744,6 +722,8 @@ class CoSLAM():
         self.create_optimizer()
         data_loader = DataLoader(self.dataset, num_workers=self.config['data']['num_workers'])
 
+
+
         # Start Co-SLAM!
         for i, batch in tqdm(enumerate(data_loader)):
             # Visualisation
@@ -789,8 +769,8 @@ class CoSLAM():
                     if self.config['mesh']['visualisation']:
                         cv2.namedWindow('Traj:'.format(i), cv2.WINDOW_AUTOSIZE)
                         traj_image = cv2.imread(os.path.join(self.config['data']['output'], self.config['data']['exp_name'], "pose_r_{}.png".format(i)))
-                        # best_traj_image = cv2.imread(os.path.join(best_logdir_scene, "pose_r_{}.png".format(i)))
-                        # image_show = np.hstack((traj_image, best_traj_image))
+                        best_traj_image = cv2.imread(os.path.join(best_logdir_scene, "pose_r_{}.png".format(i)))
+                        image_show = np.hstack((traj_image, best_traj_image))
                         image_show = traj_image
                         cv2.imshow('Traj:'.format(i), image_show)
                         key = cv2.waitKey(1)
