@@ -64,6 +64,70 @@ class CoSLAM():
         torch.manual_seed(seed)
         torch.cuda.manual_seed(seed)
         
+    def adjust_learning_rates(self, task, lr_rot, lr_trans):
+        """
+        Adjust learning rates for mapping or tracking.
+        
+        Args:
+        task (str): Either 'mapping' or 'tracking'.
+        lr_rot (float): New learning rate for rotation.
+        lr_trans (float): New learning rate for translation.
+        """
+        if task not in ['mapping', 'tracking']:
+            raise ValueError("Task must be either 'mapping' or 'tracking'")
+        
+        # Update the config with new learning rates
+        self.config[task]['initial_lr_rot'] = lr_rot
+        self.config[task]['initial_lr_trans'] = lr_trans
+        
+        if task == 'mapping':
+            # Update learning rates for mapping optimizer
+            for param_group in self.map_optimizer.param_groups:
+                if param_group['params'] == self.model.decoder.parameters():
+                    param_group['lr'] = self.config['mapping']['initial_lr_decoder']
+                elif param_group['params'] == self.model.embed_fn.parameters():
+                    param_group['lr'] = self.config['mapping']['initial_lr_embed']
+                elif not self.config['grid']['oneGrid'] and param_group['params'] == self.model.embed_fn_color.parameters():
+                    param_group['lr'] = self.config['mapping']['initial_lr_embed']
+            
+            if self.config['mapping']['use_adaptive_lr']:
+                self.mapping_scheduler = MinLRScheduler(
+                    self.map_optimizer, 
+                    step_size=self.config['mapping']['lr_decay_steps'],
+                    gamma=self.config['mapping']['lr_decay_factor'],
+                    min_lr=self.mapping_min_lr
+                )
+        
+        elif task == 'tracking':
+            # For tracking, we need to create a new optimizer as it's created for each frame
+            # We'll use the most recent pose estimation
+            latest_frame_id = max(self.est_c2w_data.keys())
+            latest_pose = self.est_c2w_data[latest_frame_id]
+            
+            cur_rot, cur_trans, pose_optimizer = self.get_pose_param_optim(latest_pose[None, ...], mapping=False)
+            
+            # Update the learning rates in the newly created optimizer
+            for param_group in pose_optimizer.param_groups:
+                if param_group['params'] == [cur_rot]:
+                    param_group['lr'] = lr_rot
+                elif param_group['params'] == [cur_trans]:
+                    param_group['lr'] = lr_trans
+            
+            # Store the new optimizer
+            self.pose_optimizer = pose_optimizer
+            
+            if self.config['tracking']['use_adaptive_lr']:
+                self.tracking_scheduler = MinLRScheduler(
+                    self.pose_optimizer, 
+                    step_size=self.config['tracking']['lr_decay_steps'],
+                    gamma=self.config['tracking']['lr_decay_factor'],
+                    min_lr=self.tracking_min_lr
+                )
+        
+        print(f"Adjusted learning rates for {task}:")
+        print(f"  Rotation LR: {lr_rot}")
+        print(f"  Translation LR: {lr_trans}")
+
     def get_pose_representation(self):
         '''
         Get the pose representation axis-angle or quaternion
