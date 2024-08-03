@@ -26,7 +26,7 @@ mapping:
   map_wait_step: 0
   filter_depth: False
   # Adaptive learning rate for Mapping
-  use_adaptive_lr: True
+  use_adaptive_lr: False
   lr_decay_factor: 0.96
   lr_decay_steps: 50
 
@@ -43,7 +43,7 @@ tracking:
   const_speed: True
   best: True
   # Adaptive learning rate for Tracking
-  use_adaptive_lr: True
+  use_adaptive_lr: False
   lr_decay_factor: 0.96
   lr_decay_steps: 200
 
@@ -107,5 +107,5 @@ mesh:
   vis: 500
   voxel_eval: 0.05
   voxel_final: 0.02
-  visualisation: True
+  visualisation: False
   

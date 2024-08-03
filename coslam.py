@@ -664,10 +664,6 @@ class CoSLAM():
         #print('Best loss: {}, Last loss{}'.format(F.l1_loss(best_c2w_est.to(self.device)[0,:3], c2w_gt[:3]).cpu().item(), F.l1_loss(c2w_est[0,:3], c2w_gt[:3]).cpu().item()))
     
 
-    def adjust_learning_rate(self, optimizer, new_lr):
-        for param_group in optimizer.param_groups:
-            param_group['lr'] = new_lr
-
     def convert_relative_pose(self):
         poses = {}
         for i in range(len(self.est_c2w_data)):
@@ -718,11 +714,22 @@ class CoSLAM():
                         voxel_size=voxel_size, 
                         mesh_savepath=mesh_savepath)      
         
+
+    def print_current_learning_rates(self):
+        print("Current Learning Rates:")
+        print(f"Mapping - Rotation: {self.config['mapping']['initial_lr_rot']}")
+        print(f"Mapping - Translation: {self.config['mapping']['initial_lr_trans']}")
+        print(f"Tracking - Rotation: {self.config['tracking']['initial_lr_rot']}")
+        print(f"Tracking - Translation: {self.config['tracking']['initial_lr_trans']}")
+
+
+
+
     def run(self):
         self.create_optimizer()
         data_loader = DataLoader(self.dataset, num_workers=self.config['data']['num_workers'])
 
-
+        iteration_count = 0
 
         # Start Co-SLAM!
         for i, batch in tqdm(enumerate(data_loader)):
@@ -742,16 +749,39 @@ class CoSLAM():
             # First frame mapping
             if i == 0:
                 self.first_frame_mapping(batch, self.config['mapping']['first_iters'])
+                iteration_count += self.config['mapping']['first_iters']
             
             # Tracking + Mapping
             else:
                 if self.config['tracking']['iter_point'] > 0:
                     self.tracking_pc(batch, i)
                 self.tracking_render(batch, i)
-    
-                if i%self.config['mapping']['map_every']==0:
+                iteration_count += self.config['tracking']['iter']
+
+                if i % self.config['mapping']['map_every']==0:
                     self.current_frame_mapping(batch, i)
                     self.global_BA(batch, i)
+                    iteration_count += self.config['mapping']['iters']
+
+
+                # Check if we've reached 500 iterations
+                if iteration_count >= 500 and iteration_count < 500 + self.config['tracking']['iter']:
+                    print("Reached 500 iterations. Current learning rates:")
+                    self.print_current_learning_rates()
+                    
+                    print("Adjusting learning rates...")
+                    # Halve the learning rates
+                    new_mapping_lr_rot = self.config['mapping']['initial_lr_rot'] / 2
+                    new_mapping_lr_trans = self.config['mapping']['initial_lr_trans'] / 2
+                    new_tracking_lr_rot = self.config['tracking']['initial_lr_rot'] / 2
+                    new_tracking_lr_trans = self.config['tracking']['initial_lr_trans'] / 2
+
+                    # Use adjust_learning_rates function
+                    self.adjust_learning_rates('mapping', new_mapping_lr_rot, new_mapping_lr_trans)
+                    self.adjust_learning_rates('tracking', new_tracking_lr_rot, new_tracking_lr_trans)
+
+                    print("After adjustment:")
+                    self.print_current_learning_rates()
 
                     
                 # Add keyframe
@@ -769,8 +799,8 @@ class CoSLAM():
                     if self.config['mesh']['visualisation']:
                         cv2.namedWindow('Traj:'.format(i), cv2.WINDOW_AUTOSIZE)
                         traj_image = cv2.imread(os.path.join(self.config['data']['output'], self.config['data']['exp_name'], "pose_r_{}.png".format(i)))
-                        best_traj_image = cv2.imread(os.path.join(best_logdir_scene, "pose_r_{}.png".format(i)))
-                        image_show = np.hstack((traj_image, best_traj_image))
+                        ##best_traj_image = cv2.imread(os.path.join(best_logdir_scene, "pose_r_{}.png".format(i)))
+                        ##image_show = np.hstack((traj_image, best_traj_image))
                         image_show = traj_image
                         cv2.imshow('Traj:'.format(i), image_show)
                         key = cv2.waitKey(1)
