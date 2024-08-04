@@ -1,14 +1,14 @@
 #!/bin/bash
 
 # Path to the directory containing the configuration files
-config_dir="$HOME/Desktop/Thesis/Codes/Thesis/Co-SLAM/configs/500_experiment_boxibox"
+config_dir="$HOME/Desktop/Thesis/Codes/Thesis/Co-SLAM/configs/replica_experiments"
 
 # Path to the Co-SLAM script
 coslam_script="$HOME/Desktop/Thesis/Codes/Thesis/Co-SLAM/coslam.py"
 
-# Ensure the base_config.yaml is in the correct location
-if [ ! -f "${config_dir}/base_config.yaml" ]; then
-    echo "Error: base_config.yaml not found in ${config_dir}"
+# Ensure the base_config_replica.yaml is in the correct location
+if [ ! -f "${config_dir}/base_config_replica.yaml" ]; then
+    echo "Error: base_config_replica.yaml not found in ${config_dir}"
     exit 1
 fi
 

@@ -76,17 +76,13 @@ class CoSLAM():
         if task not in ['mapping', 'tracking']:
             raise ValueError("Task must be either 'mapping' or 'tracking'")
         
-        # Update the config with new learning rates
         self.config[task]['initial_lr_rot'] = lr_rot
         self.config[task]['initial_lr_trans'] = lr_trans
         
         if task == 'mapping':
-            # For mapping, we only need to update the config
-            # The optimizer will use these new rates in the next optimization step
             pass
         
         elif task == 'tracking':
-            # For tracking, we create a new optimizer with the new learning rates
             latest_frame_id = max(self.est_c2w_data.keys())
             latest_pose = self.est_c2w_data[latest_frame_id]
             
