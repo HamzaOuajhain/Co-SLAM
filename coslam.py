@@ -11,7 +11,7 @@ import argparse
 import shutil
 import json
 import cv2
-
+import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
 
 from tqdm import tqdm
@@ -24,7 +24,7 @@ from datasets.dataset import get_dataset
 from utils import coordinates, extract_mesh, colormap_image
 from tools.eval_ate import pose_evaluation
 from optimization.utils import at_to_transform_matrix, qt_to_transform_matrix, matrix_to_axis_angle, matrix_to_quaternion
-
+from kalman_filter import KalmanFilter
 
 class MinLRScheduler(optim.lr_scheduler.StepLR):
     def __init__(self, optimizer, step_size, gamma, min_lr):
@@ -728,6 +728,98 @@ class CoSLAM():
             noisy_poses.append(noisy_pose)
         return noisy_poses
 
+    def apply_kalman_filter_to_poses(self):
+        # Initialize Kalman Filter parameters
+        dt = 1.0  # time step
+        F = np.array([[1, 0, 0, dt, 0, 0],
+                    [0, 1, 0, 0, dt, 0],
+                    [0, 0, 1, 0, 0, dt],
+                    [0, 0, 0, 1, 0, 0],
+                    [0, 0, 0, 0, 1, 0],
+                    [0, 0, 0, 0, 0, 1]])
+        H = np.array([[1, 0, 0, 0, 0, 0],
+                    [0, 1, 0, 0, 0, 0],
+                    [0, 0, 1, 0, 0, 0]])
+        Q = np.eye(6) * 0.01
+        R = np.eye(3) * 0.1
+
+        # Extract positions from poses
+        positions = np.array([pose[:3, 3].cpu().numpy() for pose in self.est_c2w_data.values()])
+
+        # Initialize Kalman Filter
+        initial_state = np.array([positions[0][0], positions[0][1], positions[0][2], 0, 0, 0])
+        initial_P = np.eye(6)
+        kf = KalmanFilter(initial_state, initial_P, F, H, Q, R)
+
+        original_poses = {frame_id: pose.clone() for frame_id, pose in self.est_c2w_data.items()}
+        filtered_poses = {}
+
+        # Apply Kalman Filter
+        filtered_positions = []
+        for pos in positions:
+            kf.predict()
+            kf.update(pos)
+            filtered_positions.append(kf.state[:3])
+
+        filtered_positions = np.array(filtered_positions)
+
+        # Create filtered poses without modifying self.est_c2w_data
+        for i, (frame_id, pose) in enumerate(self.est_c2w_data.items()):
+            new_pose = pose.clone()
+            new_pose[:3, 3] = torch.from_numpy(filtered_positions[i]).float().to(self.device)
+            filtered_poses[frame_id] = new_pose
+
+        print("Poses refined using Kalman Filter")
+        return original_poses, filtered_poses
+
+
+    def compare_poses(self, original_poses, filtered_poses):
+        position_differences = []
+        rotation_differences = []
+
+        for frame_id in original_poses.keys():
+            orig_pos = original_poses[frame_id][:3, 3].cpu().numpy()
+            filt_pos = filtered_poses[frame_id][:3, 3].cpu().numpy()
+            position_diff = np.linalg.norm(orig_pos - filt_pos)
+            position_differences.append(position_diff)
+
+            orig_rot = original_poses[frame_id][:3, :3].cpu().numpy()
+            filt_rot = filtered_poses[frame_id][:3, :3].cpu().numpy()
+            rotation_diff = np.arccos((np.trace(orig_rot.T @ filt_rot) - 1) / 2)
+            rotation_differences.append(rotation_diff)
+
+        avg_pos_diff = np.mean(position_differences)
+        avg_rot_diff = np.mean(rotation_differences)
+        max_pos_diff = np.max(position_differences)
+        max_rot_diff = np.max(rotation_differences)
+
+        print(f"Average position difference: {avg_pos_diff:.6f} units")
+        print(f"Average rotation difference: {avg_rot_diff:.6f} radians")
+        print(f"Maximum position difference: {max_pos_diff:.6f} units")
+        print(f"Maximum rotation difference: {max_rot_diff:.6f} radians")
+
+        return position_differences, rotation_differences
+
+    
+
+    def visualize_differences(self, position_differences, rotation_differences):
+        plt.figure(figsize=(12, 6))
+        
+        plt.subplot(1, 2, 1)
+        plt.plot(position_differences)
+        plt.title('Position Differences')
+        plt.xlabel('Frame')
+        plt.ylabel('Difference (units)')
+
+        plt.subplot(1, 2, 2)
+        plt.plot(rotation_differences)
+        plt.title('Rotation Differences')
+        plt.xlabel('Frame')
+        plt.ylabel('Difference (radians)')
+
+        plt.tight_layout()
+        plt.savefig(os.path.join(self.config['data']['output'], self.config['data']['exp_name'], 'pose_differences.png'))
+        plt.close()
 
     def run(self):
         self.create_optimizer()
@@ -760,12 +852,12 @@ class CoSLAM():
                 if self.config['tracking']['iter_point'] > 0:
                     self.tracking_pc(batch, i)
                 self.tracking_render(batch, i)
-                iteration_count += self.config['tracking']['iter']
+                iteration_count += 1
 
                 if i % self.config['mapping']['map_every']==0:
                     self.current_frame_mapping(batch, i)
                     self.global_BA(batch, i)
-                    iteration_count += self.config['mapping']['iters']
+                    iteration_count += 1
 
 
                 # Check if we've reached 500 iterations
@@ -809,15 +901,33 @@ class CoSLAM():
                         cv2.imshow('Traj:'.format(i), image_show)
                         key = cv2.waitKey(1)
 
+
+        # Original poses (without Kalman filter)
+        pose_evaluation(self.pose_gt, self.est_c2w_data, 1, os.path.join(self.config['data']['output'], self.config['data']['exp_name']), i, img='pose_original')
+
+        # Apply Kalman filter and get both original and filtered poses
+        original_poses, filtered_poses = self.apply_kalman_filter_to_poses()
+
+        # Compare the poses
+        position_differences, rotation_differences = self.compare_poses(original_poses, filtered_poses)
+
+        # Visualize the differences if desired
+        self.visualize_differences(position_differences, rotation_differences)
+
+        # Evaluate filtered poses
+        pose_evaluation(self.pose_gt, filtered_poses, 1, os.path.join(self.config['data']['output'], self.config['data']['exp_name']), i, img='pose_filtered')
+
+        # Save checkpoint and mesh (keeping your existing functionality)
         model_savepath = os.path.join(self.config['data']['output'], self.config['data']['exp_name'], 'checkpoint{}.pt'.format(i)) 
-        
         self.save_ckpt(model_savepath)
         self.save_mesh(i, voxel_size=self.config['mesh']['voxel_final'])
-        
+
+        # Relative poses (if you still need this)
         pose_relative = self.convert_relative_pose()
-        pose_evaluation(self.pose_gt, self.est_c2w_data, 1, os.path.join(self.config['data']['output'], self.config['data']['exp_name']), i)
         pose_evaluation(self.pose_gt, pose_relative, 1, os.path.join(self.config['data']['output'], self.config['data']['exp_name']), i, img='pose_r', name='output_relative.txt')
 
+        # Your existing pose evaluation
+        pose_evaluation(self.pose_gt, self.est_c2w_data, 1, os.path.join(self.config['data']['output'], self.config['data']['exp_name']), i)
         #TODO: Evaluation of reconstruction
 
 
