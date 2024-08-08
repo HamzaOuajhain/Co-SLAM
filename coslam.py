@@ -718,7 +718,15 @@ class CoSLAM():
         print(f"Tracking - Rotation: {self.config['tracking']['initial_lr_rot']}")
         print(f"Tracking - Translation: {self.config['tracking']['initial_lr_trans']}")
 
-
+    def add_noise_to_pose(poses, noise_std_dev=0.001, seed=42):
+        np.random.seed(seed)
+        noisy_poses = []
+        for pose in poses:
+            noise = np.random.normal(0, noise_std_dev, 3)
+            noisy_pose = pose.clone()
+            noisy_pose[:3, 3] += torch.from_numpy(noise).float()
+            noisy_poses.append(noisy_pose)
+        return noisy_poses
 
 
     def run(self):
