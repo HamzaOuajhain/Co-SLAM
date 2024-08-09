@@ -2,8 +2,7 @@ inherit_from: configs/Replica/replica.yaml
 mapping:
   bound: [[-5.6,1.4],[-3.2,2.8],[-1.6,1.8]]
   marching_cubes_bound: [[-5.6,1.4],[-3.2,2.8],[-1.6,1.8]]
-  # Used as the base of adaptive learning rate in Mapping
-  min_lr: 0.00001
+
 
 data:
   datadir: data/Replica/room1
@@ -11,6 +10,4 @@ data:
   output: output/Replica/room1
   exp_name: demo
 
-tracking:
-# Used as the base of adaptive learning rate in Tracking
-  min_lr: 0.00001
+

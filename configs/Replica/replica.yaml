@@ -11,10 +11,10 @@ mapping:
   first_mesh: True
   iters: 10
   cur_frame_iters: 0
-  initial_lr_embed: 0.02
-  initial_lr_decoder: 0.02
-  initial_lr_rot: 0.002
-  initial_lr_trans: 0.002
+  initial_lr_embed: 0.01
+  initial_lr_decoder: 0.01
+  initial_lr_rot: 0.001
+  initial_lr_trans: 0.001
   keyframe_every: 5
   map_every: 5
   n_pixels: 0.05
@@ -29,13 +29,15 @@ mapping:
   use_adaptive_lr: False
   lr_decay_factor: 0.96
   lr_decay_steps: 50
-
+  # Used as the base of adaptive learning rate in Mapping
+  min_lr: 0.00001
+  
 tracking:
   iter: 10
   sample: 1024
   pc_samples: 40960
-  initial_lr_rot: 0.002
-  initial_lr_trans: 0.002
+  initial_lr_rot: 0.001
+  initial_lr_trans: 0.001
   ignore_edge_W: 20
   ignore_edge_H: 20
   iter_point: 0
@@ -46,6 +48,8 @@ tracking:
   use_adaptive_lr: False
   lr_decay_factor: 0.96
   lr_decay_steps: 200
+# Used as the base of adaptive learning rate in Tracking
+  min_lr: 0.00001
 
 grid:
   enc: 'HashGrid'

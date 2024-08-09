@@ -825,7 +825,7 @@ class CoSLAM():
         self.create_optimizer()
         data_loader = DataLoader(self.dataset, num_workers=self.config['data']['num_workers'])
 
-        iteration_count = 0
+        #iteration_count = 0
 
         # Start Co-SLAM!
         for i, batch in tqdm(enumerate(data_loader)):
@@ -845,39 +845,39 @@ class CoSLAM():
             # First frame mapping
             if i == 0:
                 self.first_frame_mapping(batch, self.config['mapping']['first_iters'])
-                iteration_count += self.config['mapping']['first_iters']
+                #iteration_count += self.config['mapping']['first_iters']
             
             # Tracking + Mapping
             else:
                 if self.config['tracking']['iter_point'] > 0:
                     self.tracking_pc(batch, i)
                 self.tracking_render(batch, i)
-                iteration_count += 1
+                #iteration_count += 1
 
                 if i % self.config['mapping']['map_every']==0:
                     self.current_frame_mapping(batch, i)
                     self.global_BA(batch, i)
-                    iteration_count += 1
+                    #iteration_count += 1
 
 
                 # Check if we've reached 500 iterations
-                if iteration_count >= 500 and iteration_count < 500 + self.config['tracking']['iter']:
-                    print("Reached 500 iterations. Current learning rates:")
-                    self.print_current_learning_rates()
+                # if iteration_count >= 500 and iteration_count < 500 + self.config['tracking']['iter']:
+                #     print("Reached 500 iterations. Current learning rates:")
+                #     self.print_current_learning_rates()
                     
-                    print("Adjusting learning rates...")
-                    # Halve the learning rates
-                    new_mapping_lr_rot = self.config['mapping']['initial_lr_rot'] / 2
-                    new_mapping_lr_trans = self.config['mapping']['initial_lr_trans'] / 2
-                    new_tracking_lr_rot = self.config['tracking']['initial_lr_rot'] / 2
-                    new_tracking_lr_trans = self.config['tracking']['initial_lr_trans'] / 2
+                #     print("Adjusting learning rates...")
+                #     # Halve the learning rates
+                #     new_mapping_lr_rot = self.config['mapping']['initial_lr_rot'] / 2
+                #     new_mapping_lr_trans = self.config['mapping']['initial_lr_trans'] / 2
+                #     new_tracking_lr_rot = self.config['tracking']['initial_lr_rot'] / 2
+                #     new_tracking_lr_trans = self.config['tracking']['initial_lr_trans'] / 2
 
-                    # Use adjust_learning_rates function
-                    self.adjust_learning_rates('mapping', new_mapping_lr_rot, new_mapping_lr_trans)
-                    self.adjust_learning_rates('tracking', new_tracking_lr_rot, new_tracking_lr_trans)
+                #     # Use adjust_learning_rates function
+                #     self.adjust_learning_rates('mapping', new_mapping_lr_rot, new_mapping_lr_trans)
+                #     self.adjust_learning_rates('tracking', new_tracking_lr_rot, new_tracking_lr_trans)
 
-                    print("After adjustment:")
-                    self.print_current_learning_rates()
+                #     print("After adjustment:")
+                #     self.print_current_learning_rates()
 
                     
                 # Add keyframe
